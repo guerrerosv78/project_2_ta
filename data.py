@@ -1,20 +1,25 @@
 import pandas as pd
 
+
 def load_data():
-    data_train = pd.read_csv("data/btc_project_train.csv").dropna()
-    data_test = pd.read_csv("data/btc_project_train.csv").dropna()
+    try:
+        data_train = pd.read_csv("data/btc_project_train.csv").dropna()
+        data_test = pd.read_csv("data/btc_project_test.csv").dropna()
+        return data_train, data_test
+    except FileNotFoundError:
+        print("Error: No se encontraron los archivos en la carpeta 'data'.")
+        return None, None
 
-    return data_train, data_test
 
-def preprocess_data(raw_data: pd.DataFrame) -> pd.DataFrame:
-    data = pd.DataFrame()
-    data["timestamp"] = pd.to_datetime(raw_data["timestamp"])
-    data["Datetime"] = raw_data.Datetime
-    data["Open"] = raw_data.Open
-    data["High"] = raw_data.High
-    data["Low"] = raw_data.Low
-    data["Close"] = raw_data.Close
+def preprocess(data: pd.DataFrame) -> pd.DataFrame:
+    data = data.copy()
+    data.columns = [col.lower() for col in data.columns]
+
+    data["timeStamp"] = data["timestamp"]
+    data["open"] = data["open"]
+    data["high"] = data["high"]
+    data["low"] = data["low"]
+    data["close"] = data["close"]
+    data["Close"] = data["close"]
+
     return data
-
-
-
