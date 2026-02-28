@@ -6,44 +6,51 @@ from optimization import optimize_backtest
 
 
 def main():
-    print("WALK-FORWARD ANALYSIS")
-    train_data, test_data = load_data()
-    train_data = preprocess(train_data)
+    print("--- INICIANDO SISTEMA DE TRADING BTC ---")
+    train_raw, _ = load_data()
+    train_data = preprocess(train_raw)
+    if train_data is None: return
 
-    train_window = 2016 * 4  # 4 semanas (1 mes)
-    test_window = 2016  # 1 semana
+    print("\nPASO 1: Optimizando parámetros (200 trials)...")
+    best_params = optimize_backtest(train_data)
 
-    results = []
-    start_idx = 0
+    print("\nPASO 2: Generando Resultados y Sensibilidad...")
+    variations = [0.8, 1.0, 1.2]
+    summary = []
 
-    print(f"Iniciando bucle de optimizacion semanal...")
+    for v in variations:
+        p = best_params.copy()
+        p['rsi_window'] = int(best_params['rsi_window'] * v)
+        res = run_single_backtest(train_data, p)
+        ret, dd, calmar, sharpe = calculate_metrics(res['portfolio'])
+        summary.append({
+            "Escenario": "-20%" if v < 1 else ("+20%" if v > 1 else "ÓPTIMO"),
+            "RSI_Win": p['rsi_window'],
+            "Cap_Final": res['portfolio'][-1],
+            "Comisiones": res['total_fees'],
+            "Retorno_Pct": ret,
+            "Calmar": calmar
+        })
 
-    # 1 mes, step forward : 1 week
-    while start_idx + train_window + test_window < len(train_data):
-        window_train = train_data.iloc[start_idx: start_idx + train_window]
-        window_test = train_data.iloc[start_idx + train_window: start_idx + train_window + test_window]
+    opt = summary[1]
+    print("\n" + "=" * 55)
+    print("DESGLOSE FINANCIERO FINAL")
+    print("=" * 55)
+    print(f"Capital Inicial:  $1,000,000.00")
+    print(f"Capital Final:    ${opt['Cap_Final']:,.2f}")
+    print(f"Ganancia Neta:    ${(opt['Cap_Final'] - 1000000):,.2f}")
+    print(f"Total Comisiones: ${opt['Comisiones']:,.2f}")
+    print(f"RENDIMIENTO TOTAL: {opt['Retorno_Pct']:.2%}")
+    print(f"Calmar Ratio:     {opt['Calmar']:.4f}")
 
-        # optimizar en el mes de entrenamiento
-        print(f"optimizando ventana desde indice {start_idx}...")
-        best_params = optimize_backtest(window_train)
-        results.append(best_params)
+    print("\n--- TABLA DE SENSIBILIDAD ---")
+    df_sens = pd.DataFrame(summary)
+    df_sens['Retorno %'] = df_sens['Retorno_Pct'].map(lambda x: f"{x:.2%}")
+    print(df_sens[["Escenario", "RSI_Win", "Retorno %", "Calmar"]])
 
-        #avanza una semana
-        start_idx += test_window
-        if len(results) >= 4: break  # Limitamos para la demo, puedes quitarlo
-
-    print("\nWalk-Forward completado.")
-    print(f"Se realizaron {len(results)} optimizaciones semanales.")
-
-    # grafica con r window 24
-    full_value, ops = run_single_backtest(train_data)
-    ret, dd, calmar = calculate_metrics(full_value)
-
-    print(f"Calmar Ratio Final: {calmar:.4f}")
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(full_value, color='blue')
-    plt.title(f"Backtest Final BTC - Calmar: {calmar:.2f}")
+    plt.figure(figsize=(10, 5))
+    plt.plot(run_single_backtest(train_data, best_params)['portfolio'], color='blue')
+    plt.title(f"Evolución del Portafolio (Retorno: {opt['Retorno_Pct']:.2%})")
     plt.savefig("portfolio_final.png")
     plt.show()
 
